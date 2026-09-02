@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RS-485 Direct Test — Modbus RTU Relay 4CH</title>
+<style>
+  :root {
+    --bg: #0c0f0d;
+    --panel: #12160f;
+    --panel-border: #263420;
+    --text: #cdd8c8;
+    --text-dim: #7c8a76;
+    --amber: #e8a33d;
+    --amber-dim: #8a6524;
+    --green: #6fbf73;
+    --red: #d9634f;
+    --mono: 'IBM Plex Mono', 'SF Mono', Consolas, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    margin: 0;
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin: 0 0 2px 0;
+    font-weight: 600;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    margin: 0 0 20px 0;
+    font-size: 12px;
+  }
+  .banner {
+    border: 1px solid var(--amber-dim);
+    background: #1a1508;
+    color: var(--amber);
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 12px;
+    border-radius: 2px;
+  }
+  .banner.error {
+    border-color: #6b2c22;
+    background: #1c0e0a;
+    color: var(--red);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 820px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 0 0 10px 0;
+    font-weight: 600;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+  }
+  input[type=text], input[type=number] {
+    width: 100%;
+    background: #0a0d09;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 2px;
+    margin-bottom: 10px;
+  }
+  input:focus { outline: 1px solid var(--amber); }
+  button {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: #1a2016;
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    padding: 7px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    width: 100%;
+  }
+  button:hover { border-color: var(--amber-dim); color: var(--amber); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  button.primary {
+    background: var(--amber-dim);
+    border-color: var(--amber);
+    color: #1a1508;
+    font-weight: 600;
+  }
+  button.primary:hover { color: #000; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .row button { flex: 1; }
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+  }
+  .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  #log {
+    background: #070907;
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 10px 12px;
+    height: 520px;
+    overflow-y: auto;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .line { margin-bottom: 3px; }
+  .line.tx { color: #8fb4d9; }
+  .line.rx { color: var(--green); }
+  .line.timeout { color: var(--red); }
+  .line.info { color: var(--text-dim); }
+  .line.warn { color: var(--amber); }
+  .line.error { color: var(--red); font-weight: 600; }
+  .channel-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .divider {
+    border-top: 1px solid var(--panel-border);
+    margin: 12px 0;
+  }
+  .hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<h1>RS-485 Direct Test</h1>
+<p class="subtitle">Modbus RTU Relay 4CH — raw frames via Web Serial, no Arduino, no installed software</p>
+
+<div id="compatBanner" class="banner" style="display:none;"></div>
+
+<div class="grid">
+  <div>
+    <div class="panel">
+      <h2>Connection</h2>
+      <div class="status">
+        <div id="statusDot" class="dot"></div>
+        <span id="statusText">Disconnected</span>
+      </div>
+      <label for="baudInput">Baud rate</label>
+      <input type="number" id="baudInput" value="9600">
+      <label for="addrInput">Device address (for non-broadcast commands)</label>
+      <input type="number" id="addrInput" value="1">
+      <button class="primary" id="connectBtn" onclick="toggleConnect()">Connect to adapter</button>
+      <p class="hint">Chrome or Edge, desktop only. This must be the actual page — opened directly, not viewed inside another app's preview.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Diagnostics</h2>
+      <div class="row"><button id="btnIdentify" onclick="cmdIdentify()" disabled>IDENTIFY (broadcast addr read)</button></div>
+      <div class="row"><button id="btnReadAddr" onclick="cmdReadAddr()" disabled>Read address (device addr above)</button></div>
+      <div class="row"><button id="btnVersion" onclick="cmdReadVersion()" disabled>Read software version</button></div>
+      <div class="row"><button id="btnStatus" onclick="cmdReadStatus()" disabled>Read relay status (all 4)</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Relay control</h2>
+      <div class="channel-label">Channel 1 (Green)</div>
+      <div class="btn-grid">
+        <button class="relayBtn" onclick="cmdRelay(0,true)" disabled>ON</button>
+        <button class="relayBtn" onclick="cmdRelay(0,false)" disabled>OFF</button>
+      </div>
+      <div class="channel-label">Channel 2 (Amber)</div>
+      <div class="btn-grid">
+        <button class="relayBtn" onclick="cmdRelay(1,true)" disabled>ON</button>
+        <button class="relayBtn" onclick="cmdRelay(1,false)" disabled>OFF</button>
+      </div>
+      <div class="channel-label">Channel 3 (Red)</div>
+      <div class="btn-grid">
+        <button class="relayBtn" onclick="cmdRelay(2,true)" disabled>ON</button>
+        <button class="relayBtn" onclick="cmdRelay(2,false)" disabled>OFF</button>
+      </div>
+      <div class="channel-label">Channel 4 (spare)</div>
+      <div class="btn-grid">
+        <button class="relayBtn" onclick="cmdRelay(3,true)" disabled>ON</button>
+        <button class="relayBtn" onclick="cmdRelay(3,false)" disabled>OFF</button>
+      </div>
+      <div class="divider"></div>
+      <div class="btn-grid">
+        <button class="relayBtn" onclick="cmdAll(true)" disabled>ALL ON</button>
+        <button class="relayBtn" onclick="cmdAll(false)" disabled>ALL OFF</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Custom frame</h2>
+      <label for="customInput">Hex bytes, space-separated, address through last data byte — CRC added automatically</label>
+      <input type="text" id="customInput" placeholder="01 05 00 00 FF 00">
+      <button id="btnCustom" onclick="cmdCustom()" disabled>Send</button>
+      <p class="hint">Paste any example straight from the Waveshare docs, e.g. the register-map command tables — CRC is computed for you either way.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Log</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+let port = null;
+let reader = null;
+let writer = null;
+let keepReading = false;
+let rxBytes = [];
+
+function checkCompat() {
+  const banner = document.getElementById('compatBanner');
+  if (!('serial' in navigator)) {
+    banner.style.display = 'block';
+    banner.classList.add('error');
+    banner.textContent = 'Web Serial API not available in this browser/context. Use desktop Chrome or Edge, and make sure this HTML file is opened directly (not inside an embedded preview or iframe).';
+    document.getElementById('connectBtn').disabled = true;
+  }
+}
+checkCompat();
+
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'line ' + (cls || 'info');
+  const t = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  line.textContent = `[${t}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function toHex(bytes) {
+  return bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+}
+
+function crc16modbus(bytes) {
+  let crc = 0xFFFF;
+  for (let pos = 0; pos < bytes.length; pos++) {
+    crc ^= bytes[pos];
+    for (let i = 0; i < 8; i++) {
+      if (crc & 0x0001) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
+
+function buildFrame(payloadBytes) {
+  const crc = crc16modbus(payloadBytes);
+  return [...payloadBytes, crc & 0xFF, (crc >> 8) & 0xFF];
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setConnected(isConnected) {
+  document.getElementById('statusDot').classList.toggle('on', isConnected);
+  document.getElementById('statusText').textContent = isConnected ? 'Connected' : 'Disconnected';
+  document.getElementById('connectBtn').textContent = isConnected ? 'Disconnect' : 'Connect to adapter';
+  document.querySelectorAll('#btnIdentify, #btnReadAddr, #btnVersion, #btnStatus, .relayBtn, #btnCustom')
+    .forEach(b => b.disabled = !isConnected);
+}
+
+async function readLoop() {
+  reader = port.readable.getReader();
+  try {
+    while (keepReading) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        for (const b of value) rxBytes.push(b);
+      }
+    }
+  } catch (err) {
+    log('Read loop error: ' + err.message, 'error');
+  } finally {
+    try { reader.releaseLock(); } catch (e) {}
+  }
+}
+
+async function toggleConnect() {
+  if (port) {
+    await disconnect();
+  } else {
+    await connect();
+  }
+}
+
+async function connect() {
+  try {
+    port = await navigator.serial.requestPort();
+    const baud = parseInt(document.getElementById('baudInput').value, 10) || 9600;
+    await port.open({ baudRate: baud, dataBits: 8, stopBits: 1, parity: 'none' });
+    keepReading = true;
+    rxBytes = [];
+    readLoop();
+    writer = port.writable.getWriter();
+    setConnected(true);
+    log(`Connected at ${baud} baud, 8 data bits, no parity, 1 stop bit`, 'info');
+  } catch (err) {
+    log('Connect failed: ' + err.message, 'error');
+    port = null;
+  }
+}
+
+async function disconnect() {
+  keepReading = false;
+  try {
+    if (writer) { writer.releaseLock(); writer = null; }
+    if (reader) { await reader.cancel(); }
+    if (port) { await port.close(); }
+  } catch (err) {
+    log('Disconnect error: ' + err.message, 'error');
+  }
+  port = null;
+  setConnected(false);
+  log('Disconnected', 'info');
+}
+
+function getAddr() {
+  return parseInt(document.getElementById('addrInput').value, 10) || 1;
+}
+
+function interpretResponse(reqFc, resp) {
+  if (resp.length < 2) return;
+  const respAddr = resp[0];
+  const respFc = resp[1];
+
+  if (respFc & 0x80) {
+    const excCode = resp[2];
+    const names = { 1: 'Illegal Function', 2: 'Illegal Data Address', 3: 'Illegal Data Value', 4: 'Server Failure', 5: 'Response pending', 6: 'Device Busy' };
+    log(`   -> EXCEPTION from addr ${respAddr}: code 0x${(excCode||0).toString(16)} (${names[excCode] || 'unknown'})`, 'warn');
+    return;
+  }
+  if (respFc === 0x03 && resp.length >= 5) {
+    const val = (resp[3] << 8) | resp[4];
+    log(`   -> addr ${respAddr} register value = ${val} (0x${val.toString(16)})`, 'info');
+  } else if (respFc === 0x01 && resp.length >= 4) {
+    const statusByte = resp[3];
+    const bits = [0, 1, 2, 3].map(i => (statusByte >> i) & 1);
+    log(`   -> addr ${respAddr} coils: ch1=${bits[0]} ch2=${bits[1]} ch3=${bits[2]} ch4=${bits[3]}`, 'info');
+  } else if (respFc === 0x05) {
+    log(`   -> addr ${respAddr} write acknowledged (echo matches command)`, 'info');
+  }
+}
+
+async function sendFrame(payloadBytes, label) {
+  if (!port || !writer) { log('Not connected', 'error'); return; }
+  const frame = buildFrame(payloadBytes);
+  const startIdx = rxBytes.length;
+  log(`TX  [${label}]  ${toHex(frame)}`, 'tx');
+  try {
+    await writer.write(new Uint8Array(frame));
+  } catch (err) {
+    log('Write failed: ' + err.message, 'error');
+    return;
+  }
+  await sleep(400);
+  const response = rxBytes.slice(startIdx);
+  if (response.length === 0) {
+    log(`RX  [${label}]  (no response — timeout)`, 'timeout');
+  } else {
+    log(`RX  [${label}]  ${toHex(response)}`, 'rx');
+    interpretResponse(payloadBytes[1], response);
+  }
+}
+
+function cmdIdentify() {
+  sendFrame([0x00, 0x03, 0x40, 0x00, 0x00, 0x01], 'IDENTIFY (broadcast addr read)');
+}
+function cmdReadAddr() {
+  sendFrame([getAddr(), 0x03, 0x40, 0x00, 0x00, 0x01], 'READ ADDR');
+}
+function cmdReadVersion() {
+  sendFrame([getAddr(), 0x03, 0x80, 0x00, 0x00, 0x01], 'READ VERSION');
+}
+function cmdReadStatus() {
+  sendFrame([getAddr(), 0x01, 0x00, 0x00, 0x00, 0x04], 'READ STATUS');
+}
+function cmdRelay(channel, on) {
+  sendFrame([getAddr(), 0x05, 0x00, channel, on ? 0xFF : 0x00, 0x00], `RELAY ${channel + 1} ${on ? 'ON' : 'OFF'}`);
+}
+function cmdAll(on) {
+  sendFrame([getAddr(), 0x05, 0x00, 0xFF, on ? 0xFF : 0x00, 0x00], `ALL ${on ? 'ON' : 'OFF'}`);
+}
+function cmdCustom() {
+  const raw = document.getElementById('customInput').value.trim();
+  if (!raw) return;
+  const parts = raw.split(/\s+/).map(h => parseInt(h, 16));
+  if (parts.some(isNaN)) {
+    log('Custom frame: could not parse hex bytes', 'error');
+    return;
+  }
+  sendFrame(parts, 'CUSTOM');
+}
+</script>
+
+</body>
+</html>
