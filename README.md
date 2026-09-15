@@ -25,10 +25,11 @@ adapted from the reference implementation, never written from scratch.
 | Path | What it is |
 |---|---|
 | `docs/CONOPS.md` | The authoritative spec. Its revision table (§14) is the project changelog — currently Rev L. |
+| `docs/Display_Integration_Plan.md` | Working plan for the YK-LED4006-RS485 countdown display (slave ID 3): device register digest, commissioning steps, offline validation checklist, GTF hook points, proposed ConOps deltas. **Status: awaiting bench validation** — folds into the ConOps as a new revision once the checklist passes. |
 | `skill/grill-the-user/` | Skill source: interrogation instructions + the known-good reference implementation. **Single source of truth for the reference sketch.** |
 | `skill/grill-the-user.skill` | The packaged skill bundle (a zip). Regenerate after editing the source: `cd skill && zip -r grill-the-user.skill grill-the-user/SKILL.md grill-the-user/references/reference-implementation.ino` |
 | `programmes/` | Generated, confirmed test programmes. One folder per sketch (Arduino IDE requirement). Current: 135° oscillation, 23 rpm, 9,000 cycles. |
-| `commissioning/` | Hardware bring-up tools: relay-board and motor commissioning sketches, one-time address/baud provisioning tools, and the commissioning procedure. Not production logic. |
+| `commissioning/` | Hardware bring-up tools: relay-board, motor, and countdown-display commissioning sketches, one-time address/baud provisioning tools, the display's offline countdown reference (`Display_Countdown_Reference`), and the commissioning procedure. Not production logic. |
 | `tools/RS485_Direct_Test.html` | Browser-based raw Modbus RTU tester (Web Serial, Chrome/Edge). Talks to the bus via a USB-RS485 adapter with no installed software — the tool that settles "is it the code or the hardware" arguments. |
 
 ## Hardware snapshot (details in the ConOps)
@@ -38,6 +39,11 @@ adapted from the reference implementation, never written from scratch.
 - CL57RS drive: slave **ID 1** (DIP-switched, core hardware)
 - Waveshare Relay 4CH: slave **ID 2** (software-set, persistence verified);
   stack light Green/Amber/Red on channels 1/2/3
+- YK-LED4006-RS485 6-digit countdown display: slave **ID 3** (software-set —
+  ships at factory ID 1, which collides with the CL57RS: commission with
+  `Display_OneTime_SetAddr3` before it ever touches the trunk). Shows remaining
+  cycles or remaining minutes.seconds — **pending bench validation** (see
+  `docs/Display_Integration_Plan.md`)
 - Panel: Start/Pause/Stop on Opta I3/I4/I5, E-stop two-channel (DI1 hardware
   + I1 software)
 
